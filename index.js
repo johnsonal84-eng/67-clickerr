@@ -744,11 +744,42 @@ Thanks,
     : pending.map(r => renderReq(r, false)).join('');
 
   const completedHtml = completed.length > 0
-    ? `<div class="section-divider">
-        <h3>COMPLETED</h3>
-        ${completed.map(r => renderReq(r, true)).join('')}
-       </div>`
+    ? `<div class="section-divider"><h3>COMPLETED</h3>${completed.map(r => renderReq(r, true)).join('')}</div>`
     : '';
+
+  // Build poll HTML server-side
+  let pollHtml = '';
+  if (poll) {
+    const total = poll.options.reduce((s, o) => s + o.votes, 0);
+    const barsHtml = poll.options.map((o) => {
+      const pct = total > 0 ? Math.round(o.votes / total * 100) : 0;
+      return `<div style="margin-bottom:8px;">
+        <span style="color:#c4b5fd;">${o.text}</span>
+        <span style="color:#6b7280;font-size:16px;"> — ${o.votes} vote${o.votes !== 1 ? 's' : ''} (${pct}%)</span>
+        <div style="height:6px;background:#1a1a2e;margin-top:4px;">
+          <div style="height:6px;background:#7c3aed;width:${pct}%;"></div>
+        </div>
+      </div>`;
+    }).join('');
+    pollHtml = `
+      <div style="border:1px solid #818cf8;border-left:4px solid #818cf8;background:rgba(129,140,248,0.08);padding:16px 18px;margin-bottom:14px;">
+        <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:#818cf8;letter-spacing:2px;margin-bottom:8px;">ACTIVE POLL</div>
+        <div style="margin-bottom:12px;">${poll.question}</div>
+        ${barsHtml}
+        <div style="color:#6b7280;font-size:16px;margin-top:8px;">Total votes: ${total}</div>
+      </div>
+      <form method="POST" action="/admin/poll/clear">
+        <button type="submit" class="danger">✕ CLEAR POLL</button>
+      </form>`;
+  } else {
+    pollHtml = `
+      <div class="msg" style="margin-bottom:14px;">No active poll.</div>
+      <form method="POST" action="/admin/poll/create">
+        <input name="question" placeholder="Poll question...">
+        <textarea name="options" placeholder="One answer per line:&#10;Option A&#10;Option B&#10;Option C" style="min-height:100px;"></textarea>
+        <button type="submit">CREATE POLL</button>
+      </form>`;
+  }
 
   res.send(`<!DOCTYPE html><html><head><title>Admin Panel</title>${styles}</head><body>
     <div class="container">
@@ -769,32 +800,7 @@ Thanks,
       <!-- Poll section -->
       <div class="section-divider">
         <h3>📊 POLL</h3>
-        \${poll ? \`
-          <div class="announcement-banner" style="border-color:#818cf8;background:rgba(129,140,248,0.08);color:#e0e0ff;margin-bottom:14px;">
-            <div class="ann-label" style="color:#818cf8;">ACTIVE POLL</div>
-            <div style="margin-bottom:10px;">\${poll.question}</div>
-            \${poll.options.map((o,i) => {
-              const total = poll.options.reduce((s,x)=>s+x.votes,0);
-              const pct = total > 0 ? Math.round(o.votes/total*100) : 0;
-              return \`<div style="margin-bottom:6px;">
-                <span style="color:#c4b5fd;">\${o.text}</span>
-                <span style="color:#6b7280;font-size:16px;"> — \${o.votes} vote\${o.votes!==1?'s':''} (\${pct}%)</span>
-                <div style="height:6px;background:#1a1a2e;margin-top:4px;"><div style="height:6px;background:#7c3aed;width:\${pct}%;transition:width 0.3s;"></div></div>
-              </div>\`;
-            }).join('')}
-            <div style="color:#6b7280;font-size:16px;margin-top:8px;">Total votes: \${poll.options.reduce((s,o)=>s+o.votes,0)}</div>
-          </div>
-          <form method="POST" action="/admin/poll/clear">
-            <button type="submit" class="danger">✕ CLEAR POLL</button>
-          </form>
-        \` : \`
-          <div class="msg" style="margin-bottom:14px;">No active poll.</div>
-          <form method="POST" action="/admin/poll/create">
-            <input name="question" placeholder="Poll question...">
-            <textarea name="options" placeholder="One answer per line:&#10;Option A&#10;Option B&#10;Option C" style="min-height:100px;"></textarea>
-            <button type="submit">CREATE POLL</button>
-          </form>
-        \`}
+        ${pollHtml}
       </div>
 
       <!-- Verification requests -->
@@ -831,6 +837,7 @@ Thanks,
         }
         lastCount = count;
       };
+
     </script>
   </body></html>`);
 });
