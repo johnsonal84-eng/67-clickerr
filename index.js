@@ -198,13 +198,75 @@ const styles = `
   </style>
 `;
 
+const announcementScript = `
+  <script>
+    (function() {
+      let lastAnn = null;
+
+      function applyAnn(text) {
+        let el = document.getElementById('live-announcement');
+        if (!text) {
+          if (el) el.remove();
+          return;
+        }
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'live-announcement';
+          el.style.cssText = 'background:linear-gradient(135deg,rgba(251,191,36,0.12),rgba(245,158,11,0.06));border:1px solid #fbbf24;border-left:4px solid #fbbf24;padding:14px 18px;margin-bottom:20px;color:#fde68a;font-size:19px;animation:annSlide 0.4s ease;';
+          const label = document.createElement('div');
+          label.style.cssText = "font-family:'Press Start 2P',monospace;font-size:9px;color:#fbbf24;margin-bottom:6px;letter-spacing:2px;";
+          label.textContent = '📢 ANNOUNCEMENT';
+          el.appendChild(label);
+          const msg = document.createElement('span');
+          msg.id = 'live-ann-text';
+          el.appendChild(msg);
+          const container = document.querySelector('.container');
+          if (container) container.insertBefore(el, container.children[1]);
+        }
+        document.getElementById('live-ann-text').textContent = text;
+      }
+
+      async function poll() {
+        try {
+          const r = await fetch('/api/announcement');
+          const d = await r.json();
+          if (d.announcement !== lastAnn) {
+            lastAnn = d.announcement;
+            applyAnn(d.announcement);
+            // remove static banner if present to avoid duplicate
+            const staticBanner = document.querySelector('.announcement-banner');
+            if (staticBanner && document.getElementById('live-announcement') !== staticBanner) staticBanner.remove();
+          }
+        } catch(e) {}
+        setTimeout(poll, 4000);
+      }
+
+      // Add slide-in animation
+      const s = document.createElement('style');
+      s.textContent = '@keyframes annSlide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}';
+      document.head.appendChild(s);
+
+      poll();
+    })();
+  </script>
+`;
+
 function announcementBanner() {
   if (!announcement) return "";
   return `<div class="announcement-banner"><div class="ann-label">📢 ANNOUNCEMENT</div>${announcement}</div>`;
 }
 
+function page(title, body, extraScript = "") {
+  return `<!DOCTYPE html><html><head><title>${title}</title>${styles}</head><body>${body}${announcementScript}${extraScript}</body></html>`;
+}
+
+// Public API: current announcement text
+app.get("/api/announcement", (req, res) => {
+  res.json({ announcement });
+});
+
 app.get("/", (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><title>67 Clicker</title>${styles}</head><body>
+  res.send(page("67 Clicker", `
     <div class="container">
       <h1>67 CLICKER</h1>
       ${announcementBanner()}
@@ -215,11 +277,11 @@ app.get("/", (req, res) => {
       </nav>
       <p style="color:#6b7280;">The most important clicking game ever made.</p>
     </div>
-  </body></html>`);
+  `));
 });
 
 app.get("/signup", (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><title>Sign Up</title>${styles}</head><body>
+  res.send(page("Sign Up", `
     <div class="container">
       <h1>67 CLICKER</h1>
       ${announcementBanner()}
@@ -232,7 +294,7 @@ app.get("/signup", (req, res) => {
       </form>
       <br><a href="/login">Already have an account?</a>
     </div>
-  </body></html>`);
+  `));
 });
 
 app.post("/signup", (req, res) => {
@@ -296,7 +358,7 @@ app.post("/verify/:user", (req, res) => {
 });
 
 app.get("/login", (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><title>Login</title>${styles}</head><body>
+  res.send(page("Login", `
     <div class="container">
       <h1>67 CLICKER</h1>
       ${announcementBanner()}
@@ -308,7 +370,7 @@ app.get("/login", (req, res) => {
       </form>
       <br><a href="/signup">Need an account?</a>
     </div>
-  </body></html>`);
+  `));
 });
 
 app.post("/login", (req, res) => {
@@ -341,7 +403,7 @@ app.get("/game", (req, res) => {
   }
   user.lastTick = Date.now();
 
-  res.send(`<!DOCTYPE html><html><head><title>67 Clicker</title>${styles}</head><body>
+  res.send(page("67 Clicker", `
     <div class="container">
       <h1>67 CLICKER</h1>
       ${announcementBanner()}
@@ -361,12 +423,11 @@ app.get("/game", (req, res) => {
         <button class="click-btn" type="submit">CLICK!</button>
       </form>
     </div>
-    <script>
-      if (${user.autoRate || 0} > 0) {
-        setTimeout(() => location.reload(), 5000);
-      }
-    </script>
-  </body></html>`);
+  `, `<script>
+    if (${user.autoRate || 0} > 0) {
+      setTimeout(() => location.reload(), 5000);
+    }
+  </script>`));
 });
 
 app.post("/click", (req, res) => {
@@ -411,7 +472,7 @@ app.get("/shop", (req, res) => {
     `;
   }).join('');
 
-  res.send(`<!DOCTYPE html><html><head><title>Shop</title>${styles}</head><body>
+  res.send(page("Shop", `
     <div class="container">
       <h1>67 CLICKER</h1>
       ${announcementBanner()}
@@ -422,7 +483,7 @@ app.get("/shop", (req, res) => {
       ${itemsHtml}
       <br><a href="/game">← Back to game</a>
     </div>
-  </body></html>`);
+  `));
 });
 
 app.post("/shop/buy", (req, res) => {
