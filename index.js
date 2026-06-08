@@ -17,6 +17,8 @@ app.use(
 const users = {};
 const verificationRequests = [];
 let announcement = "";
+let poll = null;
+// poll shape: { question: "", options: [{text, votes}], voters: {username: optionIndex} }
 
 const ADMIN_USER = "caleb";
 const ADMIN_PASS = "calebtheadmin123";
@@ -251,13 +253,85 @@ const announcementScript = `
   </script>
 `;
 
+
+const pollScript = `
+  <script>
+    (function() {
+      let lastPollQ = null;
+
+      function renderPoll(data) {
+        let el = document.getElementById('live-poll');
+        if (!data) {
+          if (el) el.remove();
+          return;
+        }
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'live-poll';
+          el.style.cssText = 'background:rgba(129,140,248,0.06);border:1px solid #4f46e5;border-left:4px solid #818cf8;padding:16px 18px;margin-bottom:20px;animation:annSlide 0.4s ease;';
+          const container = document.querySelector('.container');
+          if (container) {
+            const ann = document.getElementById('live-announcement');
+            const ref = ann ? ann.nextSibling : container.children[1];
+            container.insertBefore(el, ref || null);
+          }
+        }
+
+        const total = data.totalVotes;
+        const voted = data.voted;
+
+        let html = '<div style="font-family:\'Press Start 2P\',monospace;font-size:9px;color:#818cf8;letter-spacing:2px;margin-bottom:8px;">📊 POLL</div>';
+        html += '<div style="margin-bottom:12px;font-size:20px;">' + data.question + '</div>';
+
+        data.options.forEach((opt, i) => {
+          const pct = total > 0 ? Math.round(opt.votes / total * 100) : 0;
+          const isVoted = voted === i;
+          if (voted !== null) {
+            html += '<div style="margin-bottom:8px;">';
+            html += '<span style="color:' + (isVoted ? '#a78bfa' : '#c4b5fd') + ';font-size:19px;">' + (isVoted ? '▶ ' : '') + opt.text + '</span>';
+            html += '<span style="color:#6b7280;font-size:16px;"> ' + opt.votes + ' vote' + (opt.votes!==1?'s':'') + ' (' + pct + '%)</span>';
+            html += '<div style="height:5px;background:#1a1a2e;margin-top:4px;border-radius:2px;"><div style="height:5px;background:' + (isVoted?'#7c3aed':'#4f46e5') + ';width:' + pct + '%;transition:width 0.4s;border-radius:2px;"></div></div>';
+            html += '</div>';
+          } else {
+            html += '<button onclick="vote(' + i + ')" style="display:block;width:100%;margin-bottom:8px;text-align:left;padding:10px 14px;background:rgba(79,70,229,0.15);border:1px solid #4f46e5;color:#c4b5fd;font-family:\'VT323\',monospace;font-size:20px;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(124,58,237,0.25)\'" onmouseout="this.style.background=\'rgba(79,70,229,0.15)\'">' + opt.text + '</button>';
+          }
+        });
+
+        if (voted !== null) {
+          html += '<div style="color:#6b7280;font-size:16px;margin-top:6px;">' + total + ' total vote' + (total!==1?'s':'') + '</div>';
+        }
+
+        el.innerHTML = html;
+      }
+
+      window.vote = async function(idx) {
+        const fd = new FormData();
+        fd.append('option', idx);
+        await fetch('/api/poll/vote', { method: 'POST', body: new URLSearchParams(fd) });
+        fetchPoll();
+      };
+
+      async function fetchPoll() {
+        try {
+          const r = await fetch('/api/poll');
+          const d = await r.json();
+          renderPoll(d.poll);
+        } catch(e) {}
+        setTimeout(fetchPoll, 4000);
+      }
+
+      fetchPoll();
+    })();
+  </script>
+`;
+
 function announcementBanner() {
   if (!announcement) return "";
   return `<div class="announcement-banner"><div class="ann-label">📢 ANNOUNCEMENT</div>${announcement}</div>`;
 }
 
 function page(title, body, extraScript = "") {
-  return `<!DOCTYPE html><html><head><title>${title}</title>${styles}</head><body>${body}${announcementScript}${extraScript}</body></html>`;
+  return `<!DOCTYPE html><html><head><title>${title}</title>${styles}</head><body>${body}${announcementScript}${pollScript}${extraScript}</body></html>`;
 }
 
 // Public API: current announcement text
@@ -552,6 +626,56 @@ app.post("/admin/announce", (req, res) => {
   res.redirect("/admin/panel");
 });
 
+
+// Public API: current poll state
+app.get("/api/poll", (req, res) => {
+  if (!poll) return res.json({ poll: null });
+  const username = req.session.user;
+  const voted = username && poll.voters[username] !== undefined ? poll.voters[username] : null;
+  res.json({
+    poll: {
+      question: poll.question,
+      options: poll.options.map((o, i) => ({ text: o.text, votes: o.votes, index: i })),
+      totalVotes: poll.options.reduce((s, o) => s + o.votes, 0),
+      voted,
+    }
+  });
+});
+
+// Vote on poll
+app.post("/api/poll/vote", (req, res) => {
+  const username = req.session.user;
+  if (!username) return res.json({ error: "Not logged in" });
+  if (!poll) return res.json({ error: "No poll" });
+  const idx = parseInt(req.body.option);
+  if (isNaN(idx) || idx < 0 || idx >= poll.options.length) return res.json({ error: "Invalid option" });
+  if (poll.voters[username] !== undefined) return res.json({ error: "Already voted" });
+  poll.options[idx].votes++;
+  poll.voters[username] = idx;
+  res.json({ ok: true });
+});
+
+// Admin: create poll
+app.post("/admin/poll/create", (req, res) => {
+  if (!req.session.admin) return res.redirect("/admin");
+  const question = (req.body.question || "").trim();
+  const rawOptions = (req.body.options || "").split("\n").map(s => s.trim()).filter(Boolean);
+  if (!question || rawOptions.length < 2) return res.redirect("/admin/panel");
+  poll = {
+    question,
+    options: rawOptions.map(text => ({ text, votes: 0 })),
+    voters: {},
+  };
+  res.redirect("/admin/panel");
+});
+
+// Admin: clear poll
+app.post("/admin/poll/clear", (req, res) => {
+  if (!req.session.admin) return res.redirect("/admin");
+  poll = null;
+  res.redirect("/admin/panel");
+});
+
 app.get("/admin", (req, res) => {
   res.send(`<!DOCTYPE html><html><head><title>Admin</title>${styles}</head><body>
     <div class="container">
@@ -640,6 +764,37 @@ Thanks,
           <button type="submit">POST ANNOUNCEMENT</button>
           ${announcement ? `&nbsp;&nbsp;<a href="#" onclick="document.querySelector('textarea').value='';document.querySelector('form[action*=announce]').submit();return false;" style="color:#ef4444;border-color:#ef4444;">Clear</a>` : ''}
         </form>
+      </div>
+
+      <!-- Poll section -->
+      <div class="section-divider">
+        <h3>📊 POLL</h3>
+        \${poll ? \`
+          <div class="announcement-banner" style="border-color:#818cf8;background:rgba(129,140,248,0.08);color:#e0e0ff;margin-bottom:14px;">
+            <div class="ann-label" style="color:#818cf8;">ACTIVE POLL</div>
+            <div style="margin-bottom:10px;">\${poll.question}</div>
+            \${poll.options.map((o,i) => {
+              const total = poll.options.reduce((s,x)=>s+x.votes,0);
+              const pct = total > 0 ? Math.round(o.votes/total*100) : 0;
+              return \`<div style="margin-bottom:6px;">
+                <span style="color:#c4b5fd;">\${o.text}</span>
+                <span style="color:#6b7280;font-size:16px;"> — \${o.votes} vote\${o.votes!==1?'s':''} (\${pct}%)</span>
+                <div style="height:6px;background:#1a1a2e;margin-top:4px;"><div style="height:6px;background:#7c3aed;width:\${pct}%;transition:width 0.3s;"></div></div>
+              </div>\`;
+            }).join('')}
+            <div style="color:#6b7280;font-size:16px;margin-top:8px;">Total votes: \${poll.options.reduce((s,o)=>s+o.votes,0)}</div>
+          </div>
+          <form method="POST" action="/admin/poll/clear">
+            <button type="submit" class="danger">✕ CLEAR POLL</button>
+          </form>
+        \` : \`
+          <div class="msg" style="margin-bottom:14px;">No active poll.</div>
+          <form method="POST" action="/admin/poll/create">
+            <input name="question" placeholder="Poll question...">
+            <textarea name="options" placeholder="One answer per line:&#10;Option A&#10;Option B&#10;Option C" style="min-height:100px;"></textarea>
+            <button type="submit">CREATE POLL</button>
+          </form>
+        \`}
       </div>
 
       <!-- Verification requests -->
