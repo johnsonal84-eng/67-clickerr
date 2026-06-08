@@ -255,80 +255,68 @@ const announcementScript = `
 
 
 const pollScript = `
+  <div id="live-poll" style="display:none;background:rgba(129,140,248,0.06);border:1px solid #4f46e5;border-left:4px solid #818cf8;padding:16px 18px;margin-bottom:20px;"></div>
   <script>
     (function() {
-      async function fetchPoll() {
-        try {
-          const r = await fetch('/api/poll');
-          const d = await r.json();
-          renderPoll(d.poll);
-        } catch(e) {}
-        setTimeout(fetchPoll, 4000);
+      var el = document.getElementById('live-poll');
+
+      // Move poll div to right spot inside container, after h1
+      var container = document.querySelector('.container');
+      if (container && el) {
+        var h1 = container.querySelector('h1');
+        if (h1 && h1.parentNode === container) {
+          container.insertBefore(el, h1.nextSibling);
+        }
       }
 
-      window.castVote = async function(idx) {
-        const body = new URLSearchParams({ option: idx });
-        await fetch('/api/poll/vote', { method: 'POST', body });
-        fetchPoll();
-      };
-
       function renderPoll(data) {
-        let el = document.getElementById('live-poll');
-
         if (!data) {
-          if (el) el.remove();
+          el.style.display = 'none';
+          el.innerHTML = '';
           return;
         }
 
-        if (!el) {
-          el = document.createElement('div');
-          el.id = 'live-poll';
-          el.style.cssText = [
-            'background:rgba(129,140,248,0.06)',
-            'border:1px solid #4f46e5',
-            'border-left:4px solid #818cf8',
-            'padding:16px 18px',
-            'margin-bottom:20px',
-          ].join(';');
-          const container = document.querySelector('.container');
-          if (!container) return;
-          // Insert after h1
-          const h1 = container.querySelector('h1');
-          if (h1 && h1.nextSibling) {
-            container.insertBefore(el, h1.nextSibling);
-          } else {
-            container.prepend(el);
-          }
-        }
-
-        const total = data.totalVotes;
-        // voted is null (not voted) or a number (option index)
-        const hasVoted = data.voted !== null && data.voted !== undefined;
-
-        let html = '<div style="font-family:\'Press Start 2P\',monospace;font-size:9px;color:#818cf8;letter-spacing:2px;margin-bottom:10px;">📊 POLL</div>';
+        var total = data.totalVotes;
+        var hasVoted = data.voted !== null && data.voted !== undefined;
+        var html = '<div style="font-family:\'Press Start 2P\',monospace;font-size:9px;color:#818cf8;letter-spacing:2px;margin-bottom:10px;">📊 POLL</div>';
         html += '<div style="margin-bottom:14px;font-size:21px;color:#e0e0ff;">' + data.question + '</div>';
 
-        data.options.forEach(function(opt, i) {
-          const pct = total > 0 ? Math.round(opt.votes / total * 100) : 0;
-          const isMyVote = hasVoted && data.voted === i;
+        for (var i = 0; i < data.options.length; i++) {
+          var opt = data.options[i];
+          var pct = total > 0 ? Math.round(opt.votes / total * 100) : 0;
+          var isMyVote = hasVoted && data.voted === i;
 
           if (hasVoted) {
             html += '<div style="margin-bottom:10px;">';
-            html += '<div style="font-size:19px;color:' + (isMyVote ? '#a78bfa' : '#c4b5fd') + ';">' + (isMyVote ? '▶ ' : '') + opt.text + '</div>';
+            html += '<div style="font-size:19px;color:' + (isMyVote ? '#a78bfa' : '#c4b5fd') + ';">' + (isMyVote ? '&#9654; ' : '') + opt.text + '</div>';
             html += '<div style="color:#6b7280;font-size:16px;">' + opt.votes + ' vote' + (opt.votes !== 1 ? 's' : '') + ' (' + pct + '%)</div>';
-            html += '<div style="height:5px;background:#1a1a2e;margin-top:4px;border-radius:2px;">';
-            html += '<div style="height:5px;background:' + (isMyVote ? '#7c3aed' : '#4f46e5') + ';width:' + pct + '%;border-radius:2px;transition:width 0.4s;"></div>';
-            html += '</div></div>';
+            html += '<div style="height:5px;background:#1a1a2e;margin-top:4px;border-radius:2px;"><div style="height:5px;background:' + (isMyVote ? '#7c3aed' : '#4f46e5') + ';width:' + pct + '%;border-radius:2px;"></div></div>';
+            html += '</div>';
           } else {
             html += '<button onclick="castVote(' + i + ')" style="display:block;width:100%;margin-bottom:8px;text-align:left;padding:10px 14px;background:rgba(79,70,229,0.15);border:1px solid #4f46e5;color:#c4b5fd;font-family:VT323,monospace;font-size:20px;cursor:pointer;">' + opt.text + '</button>';
           }
-        });
+        }
 
         if (hasVoted) {
           html += '<div style="color:#6b7280;font-size:16px;margin-top:6px;">' + total + ' total vote' + (total !== 1 ? 's' : '') + '</div>';
         }
 
         el.innerHTML = html;
+        el.style.display = 'block';
+      }
+
+      window.castVote = function(idx) {
+        var body = 'option=' + idx;
+        fetch('/api/poll/vote', { method: 'POST', body: body, credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+          .then(function() { fetchPoll(); });
+      };
+
+      function fetchPoll() {
+        fetch('/api/poll', { credentials: 'include' })
+          .then(function(r) { return r.json(); })
+          .then(function(d) { renderPoll(d.poll); })
+          .catch(function() {})
+          .finally(function() { setTimeout(fetchPoll, 4000); });
       }
 
       fetchPoll();
@@ -464,7 +452,7 @@ app.post("/login", (req, res) => {
     req.session.user = req.body.username;
     return res.redirect("/game");
   }
-  res.send(`<!DOCTYPE html><html><head><title>Login</title>${styles}</head><body>
+  res.send(page("Login", `
     <div class="container">
       <h1>67 CLICKER</h1>
       <div class="msg error">Login failed or account not verified.</div>
@@ -474,7 +462,7 @@ app.post("/login", (req, res) => {
         <button type="submit">LOGIN</button>
       </form>
     </div>
-  </body></html>`);
+  `));
 });
 
 app.get("/game", (req, res) => {
