@@ -16,6 +16,7 @@ app.use(
 
 const users = {};
 const verificationRequests = [];
+let announcement = "";
 
 const ADMIN_USER = "caleb";
 const ADMIN_PASS = "calebtheadmin123";
@@ -61,6 +62,12 @@ const styles = `
       color: #c4b5fd;
       margin-bottom: 24px;
     }
+    h3 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+      color: #c4b5fd;
+      margin-bottom: 14px;
+    }
     a {
       color: #818cf8;
       text-decoration: none;
@@ -70,7 +77,7 @@ const styles = `
     }
     a:hover { color: #a78bfa; }
     nav { margin-bottom: 30px; display: flex; gap: 20px; flex-wrap: wrap; }
-    input {
+    input, textarea {
       background: #1a1a2e;
       border: 1px solid #4f46e5;
       color: #e0e0ff;
@@ -82,7 +89,8 @@ const styles = `
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    input:focus {
+    textarea { resize: vertical; min-height: 80px; }
+    input:focus, textarea:focus {
       border-color: #7c3aed;
       box-shadow: 0 0 10px rgba(124,58,237,0.3);
     }
@@ -103,18 +111,13 @@ const styles = `
       box-shadow: 0 6px 20px rgba(124,58,237,0.6);
     }
     button:active { transform: translateY(0); }
-    .card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(124,58,237,0.3);
-      padding: 24px;
-      margin-bottom: 20px;
+    button.danger {
+      background: linear-gradient(135deg, #7f1d1d, #ef4444);
+      box-shadow: 0 4px 15px rgba(239,68,68,0.3);
     }
-    .clicks-display {
-      font-family: 'Press Start 2P', monospace;
-      font-size: 32px;
-      color: #a78bfa;
-      text-shadow: 0 0 20px #7c3aed;
-      margin: 20px 0;
+    button.success-btn {
+      background: linear-gradient(135deg, #064e3b, #10b981);
+      box-shadow: 0 4px 15px rgba(16,185,129,0.3);
     }
     .click-btn {
       font-size: 16px;
@@ -155,8 +158,25 @@ const styles = `
     .msg { padding: 14px; margin-bottom: 16px; border-left: 3px solid #7c3aed; background: rgba(124,58,237,0.1); font-size: 18px; }
     .msg.error { border-color: #ef4444; background: rgba(239,68,68,0.1); }
     .msg.success { border-color: #10b981; background: rgba(16,185,129,0.1); }
+    .announcement-banner {
+      background: linear-gradient(135deg, rgba(251,191,36,0.1), rgba(245,158,11,0.05));
+      border: 1px solid #fbbf24;
+      border-left: 4px solid #fbbf24;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      color: #fde68a;
+      font-size: 19px;
+    }
+    .announcement-banner .ann-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      color: #fbbf24;
+      margin-bottom: 6px;
+      letter-spacing: 2px;
+    }
     hr { border: none; border-top: 1px solid rgba(124,58,237,0.2); margin: 20px 0; }
     .admin-req { background: rgba(255,255,255,0.02); border: 1px solid rgba(124,58,237,0.2); padding: 20px; margin-bottom: 16px; }
+    .admin-req-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
     pre { background: rgba(0,0,0,0.3); padding: 14px; font-family: 'VT323', monospace; font-size: 16px; white-space: pre-wrap; margin-top: 10px; color: #86efac; }
     .ping-dot {
       display: inline-block;
@@ -170,13 +190,24 @@ const styles = `
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.5; transform: scale(1.4); }
     }
+    .section-divider {
+      border-top: 1px solid rgba(124,58,237,0.3);
+      margin: 30px 0;
+      padding-top: 24px;
+    }
   </style>
 `;
+
+function announcementBanner() {
+  if (!announcement) return "";
+  return `<div class="announcement-banner"><div class="ann-label">📢 ANNOUNCEMENT</div>${announcement}</div>`;
+}
 
 app.get("/", (req, res) => {
   res.send(`<!DOCTYPE html><html><head><title>67 Clicker</title>${styles}</head><body>
     <div class="container">
       <h1>67 CLICKER</h1>
+      ${announcementBanner()}
       <nav>
         <a href="/signup">Sign Up</a>
         <a href="/login">Login</a>
@@ -191,6 +222,7 @@ app.get("/signup", (req, res) => {
   res.send(`<!DOCTYPE html><html><head><title>Sign Up</title>${styles}</head><body>
     <div class="container">
       <h1>67 CLICKER</h1>
+      ${announcementBanner()}
       <h2>CREATE ACCOUNT</h2>
       <form method="POST">
         <input name="username" placeholder="Username">
@@ -215,7 +247,7 @@ app.post("/signup", (req, res) => {
     autoRate: 0,
     inventory: [],
   };
-  verificationRequests.push({ username: req.body.username, email: req.body.email, code, time: Date.now() });
+  verificationRequests.push({ username: req.body.username, email: req.body.email, code, time: Date.now(), done: false });
   res.send(`<!DOCTYPE html><html><head><title>Verify</title>${styles}</head><body>
     <div class="container">
       <h1>67 CLICKER</h1>
@@ -267,6 +299,7 @@ app.get("/login", (req, res) => {
   res.send(`<!DOCTYPE html><html><head><title>Login</title>${styles}</head><body>
     <div class="container">
       <h1>67 CLICKER</h1>
+      ${announcementBanner()}
       <h2>LOGIN</h2>
       <form method="POST">
         <input name="username" placeholder="Username">
@@ -302,7 +335,6 @@ app.get("/game", (req, res) => {
   if (!username) return res.redirect("/login");
   const user = users[username];
 
-  // apply auto clicker ticks
   if (user.lastTick) {
     const secs = (Date.now() - user.lastTick) / 1000;
     user.clicks += Math.floor(secs * (user.autoRate || 0));
@@ -312,6 +344,7 @@ app.get("/game", (req, res) => {
   res.send(`<!DOCTYPE html><html><head><title>67 Clicker</title>${styles}</head><body>
     <div class="container">
       <h1>67 CLICKER</h1>
+      ${announcementBanner()}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <span style="color:#c4b5fd;font-family:'Press Start 2P',monospace;font-size:12px;">${username}</span>
         <span>
@@ -329,7 +362,6 @@ app.get("/game", (req, res) => {
       </form>
     </div>
     <script>
-      // auto-refresh every 5s to show auto clicker progress
       if (${user.autoRate || 0} > 0) {
         setTimeout(() => location.reload(), 5000);
       }
@@ -342,13 +374,11 @@ app.post("/click", (req, res) => {
   if (!username) return res.redirect("/login");
   const user = users[username];
 
-  // apply auto clicker ticks first
   if (user.lastTick) {
     const secs = (Date.now() - user.lastTick) / 1000;
     user.clicks += Math.floor(secs * (user.autoRate || 0));
   }
   user.lastTick = Date.now();
-
   user.clicks += (user.multiplier || 1);
   res.redirect("/game");
 });
@@ -384,6 +414,7 @@ app.get("/shop", (req, res) => {
   res.send(`<!DOCTYPE html><html><head><title>Shop</title>${styles}</head><body>
     <div class="container">
       <h1>67 CLICKER</h1>
+      ${announcementBanner()}
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <h2>SHOP</h2>
         <span style="color:#fbbf24;font-family:'Press Start 2P',monospace;font-size:12px;">${user.clicks} clicks</span>
@@ -421,7 +452,7 @@ app.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
 });
 
-// Admin SSE endpoint for live ping
+// Admin SSE - sends count of PENDING (not done) requests
 app.get("/admin/events", (req, res) => {
   if (!req.session.admin) return res.status(403).end();
   res.setHeader("Content-Type", "text/event-stream");
@@ -429,11 +460,35 @@ app.get("/admin/events", (req, res) => {
   res.setHeader("Connection", "keep-alive");
 
   const send = () => {
-    res.write(`data: ${verificationRequests.length}\n\n`);
+    const pending = verificationRequests.filter(r => !r.done).length;
+    res.write(`data: ${pending}\n\n`);
   };
   send();
   const interval = setInterval(send, 3000);
   req.on("close", () => clearInterval(interval));
+});
+
+// Mark a verification request as done
+app.post("/admin/done/:username", (req, res) => {
+  if (!req.session.admin) return res.redirect("/admin");
+  const req2 = verificationRequests.find(r => r.username === req.params.username);
+  if (req2) req2.done = true;
+  res.redirect("/admin/panel");
+});
+
+// Delete a verification request
+app.post("/admin/delete/:username", (req, res) => {
+  if (!req.session.admin) return res.redirect("/admin");
+  const idx = verificationRequests.findIndex(r => r.username === req.params.username);
+  if (idx !== -1) verificationRequests.splice(idx, 1);
+  res.redirect("/admin/panel");
+});
+
+// Post announcement
+app.post("/admin/announce", (req, res) => {
+  if (!req.session.admin) return res.redirect("/admin");
+  announcement = req.body.message || "";
+  res.redirect("/admin/panel");
 });
 
 app.get("/admin", (req, res) => {
@@ -467,14 +522,18 @@ app.post("/admin/login", (req, res) => {
 app.get("/admin/panel", (req, res) => {
   if (!req.session.admin) return res.redirect("/admin");
 
-  const requestsHtml = verificationRequests.length === 0
-    ? `<div class="msg">No pending verification requests.</div>`
-    : verificationRequests.map((r, i) => `
-        <div class="admin-req">
-          <div><span class="ping-dot"></span><b>User:</b> ${r.username}</div>
-          <div><b>Email:</b> ${r.email}</div>
-          <div><b>Code:</b> <span style="color:#fbbf24;font-family:'Press Start 2P',monospace;">${r.code}</span></div>
-          <pre>Subject: 67 Clicker Verification Code
+  const pending = verificationRequests.filter(r => !r.done);
+  const completed = verificationRequests.filter(r => r.done);
+
+  const renderReq = (r, isDone) => `
+    <div class="admin-req" style="${isDone ? 'opacity:0.5;' : ''}">
+      <div>
+        ${!isDone ? `<span class="ping-dot"></span>` : `<span style="color:#10b981;margin-right:8px;">✓</span>`}
+        <b>User:</b> ${r.username}
+        &nbsp;<span style="color:#6b7280;font-size:16px;">${r.email}</span>
+      </div>
+      <div style="margin-top:6px;"><b>Code:</b> <span style="color:#fbbf24;font-family:'Press Start 2P',monospace;font-size:13px;">${r.code}</span></div>
+      <pre>Subject: 67 Clicker Verification Code
 
 Hello,
 
@@ -482,20 +541,54 @@ Your verification code is: ${r.code}
 
 Thanks,
 67 Clicker Team</pre>
-        </div>
-      `).join('');
+      <div class="admin-req-actions">
+        ${!isDone ? `
+          <form method="POST" action="/admin/done/${r.username}">
+            <button type="submit" class="success-btn">✓ EMAIL SENT</button>
+          </form>
+        ` : ''}
+        <form method="POST" action="/admin/delete/${r.username}">
+          <button type="submit" class="danger">✕ REMOVE</button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  const pendingHtml = pending.length === 0
+    ? `<div class="msg">No pending requests.</div>`
+    : pending.map(r => renderReq(r, false)).join('');
+
+  const completedHtml = completed.length > 0
+    ? `<div class="section-divider">
+        <h3>COMPLETED</h3>
+        ${completed.map(r => renderReq(r, true)).join('')}
+       </div>`
+    : '';
 
   res.send(`<!DOCTYPE html><html><head><title>Admin Panel</title>${styles}</head><body>
     <div class="container">
       <h1>67 CLICKER</h1>
       <h2>ADMIN PANEL</h2>
-      <div style="color:#6b7280;margin-bottom:20px;">
-        Pending requests: <span style="color:#fbbf24;" id="reqCount">${verificationRequests.length}</span>
+
+      <!-- Announcement section -->
+      <div class="section-divider" style="margin-top:0;padding-top:0;border-top:none;">
+        <h3>📢 GLOBAL ANNOUNCEMENT</h3>
+        ${announcement ? `<div class="announcement-banner" style="margin-bottom:14px;"><div class="ann-label">CURRENT</div>${announcement}</div>` : `<div class="msg" style="margin-bottom:14px;">No active announcement.</div>`}
+        <form method="POST" action="/admin/announce">
+          <textarea name="message" placeholder="Type announcement... (leave blank to clear)">${announcement}</textarea>
+          <button type="submit">POST ANNOUNCEMENT</button>
+          ${announcement ? `&nbsp;&nbsp;<a href="#" onclick="document.querySelector('textarea').value='';document.querySelector('form[action*=announce]').submit();return false;" style="color:#ef4444;border-color:#ef4444;">Clear</a>` : ''}
+        </form>
       </div>
-      ${requestsHtml}
+
+      <!-- Verification requests -->
+      <div class="section-divider">
+        <h3>VERIFICATION REQUESTS <span id="reqCount" style="color:#fbbf24;">(${pending.length} pending)</span></h3>
+        ${pendingHtml}
+        ${completedHtml}
+      </div>
     </div>
     <script>
-      // Ding sound using Web Audio API
       function ding() {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const o = ctx.createOscillator();
@@ -510,15 +603,14 @@ Thanks,
         o.stop(ctx.currentTime + 0.6);
       }
 
-      let lastCount = ${verificationRequests.length};
+      let lastCount = ${pending.length};
 
       const es = new EventSource("/admin/events");
       es.onmessage = (e) => {
         const count = parseInt(e.data);
-        document.getElementById("reqCount").textContent = count;
+        document.getElementById("reqCount").textContent = "(" + count + " pending)";
         if (count > lastCount) {
           ding();
-          // reload to show new request
           setTimeout(() => location.reload(), 800);
         }
         lastCount = count;
