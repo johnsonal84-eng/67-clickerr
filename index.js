@@ -255,24 +255,16 @@ const announcementScript = `
 
 
 const pollScript = `
-  <div id="live-poll" style="display:none;background:rgba(129,140,248,0.06);border:1px solid #4f46e5;border-left:4px solid #818cf8;padding:16px 18px;margin-bottom:20px;"></div>
+  <div id="live-poll" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#0d0d1a;border-bottom:2px solid #818cf8;padding:14px 24px;box-shadow:0 4px 30px rgba(124,58,237,0.4);"></div>
   <script>
     (function() {
       var el = document.getElementById('live-poll');
-
-      // Move poll div to right spot inside container, after h1
-      var container = document.querySelector('.container');
-      if (container && el) {
-        var h1 = container.querySelector('h1');
-        if (h1 && h1.parentNode === container) {
-          container.insertBefore(el, h1.nextSibling);
-        }
-      }
 
       function renderPoll(data) {
         if (!data) {
           el.style.display = 'none';
           el.innerHTML = '';
+          document.body.style.paddingTop = '';
           return;
         }
 
@@ -303,6 +295,7 @@ const pollScript = `
 
         el.innerHTML = html;
         el.style.display = 'block';
+        document.body.style.paddingTop = el.offsetHeight + 'px';
       }
 
       window.castVote = function(idx) {
