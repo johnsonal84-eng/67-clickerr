@@ -257,60 +257,6 @@ const announcementScript = `
 const pollScript = `
   <script>
     (function() {
-      let lastPollQ = null;
-
-      function renderPoll(data) {
-        let el = document.getElementById('live-poll');
-        if (!data) {
-          if (el) el.remove();
-          return;
-        }
-        if (!el) {
-          el = document.createElement('div');
-          el.id = 'live-poll';
-          el.style.cssText = 'background:rgba(129,140,248,0.06);border:1px solid #4f46e5;border-left:4px solid #818cf8;padding:16px 18px;margin-bottom:20px;animation:annSlide 0.4s ease;';
-          const container = document.querySelector('.container');
-          if (container) {
-            const ann = document.getElementById('live-announcement');
-            const ref = ann ? ann.nextSibling : container.children[1];
-            container.insertBefore(el, ref || null);
-          }
-        }
-
-        const total = data.totalVotes;
-        const voted = data.voted;
-
-        let html = '<div style="font-family:\'Press Start 2P\',monospace;font-size:9px;color:#818cf8;letter-spacing:2px;margin-bottom:8px;">📊 POLL</div>';
-        html += '<div style="margin-bottom:12px;font-size:20px;">' + data.question + '</div>';
-
-        data.options.forEach((opt, i) => {
-          const pct = total > 0 ? Math.round(opt.votes / total * 100) : 0;
-          const isVoted = voted === i;
-          if (voted !== null) {
-            html += '<div style="margin-bottom:8px;">';
-            html += '<span style="color:' + (isVoted ? '#a78bfa' : '#c4b5fd') + ';font-size:19px;">' + (isVoted ? '▶ ' : '') + opt.text + '</span>';
-            html += '<span style="color:#6b7280;font-size:16px;"> ' + opt.votes + ' vote' + (opt.votes!==1?'s':'') + ' (' + pct + '%)</span>';
-            html += '<div style="height:5px;background:#1a1a2e;margin-top:4px;border-radius:2px;"><div style="height:5px;background:' + (isVoted?'#7c3aed':'#4f46e5') + ';width:' + pct + '%;transition:width 0.4s;border-radius:2px;"></div></div>';
-            html += '</div>';
-          } else {
-            html += '<button onclick="vote(' + i + ')" style="display:block;width:100%;margin-bottom:8px;text-align:left;padding:10px 14px;background:rgba(79,70,229,0.15);border:1px solid #4f46e5;color:#c4b5fd;font-family:\'VT323\',monospace;font-size:20px;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background=\'rgba(124,58,237,0.25)\'" onmouseout="this.style.background=\'rgba(79,70,229,0.15)\'">' + opt.text + '</button>';
-          }
-        });
-
-        if (voted !== null) {
-          html += '<div style="color:#6b7280;font-size:16px;margin-top:6px;">' + total + ' total vote' + (total!==1?'s':'') + '</div>';
-        }
-
-        el.innerHTML = html;
-      }
-
-      window.vote = async function(idx) {
-        const fd = new FormData();
-        fd.append('option', idx);
-        await fetch('/api/poll/vote', { method: 'POST', body: new URLSearchParams(fd) });
-        fetchPoll();
-      };
-
       async function fetchPoll() {
         try {
           const r = await fetch('/api/poll');
@@ -318,6 +264,71 @@ const pollScript = `
           renderPoll(d.poll);
         } catch(e) {}
         setTimeout(fetchPoll, 4000);
+      }
+
+      window.castVote = async function(idx) {
+        const body = new URLSearchParams({ option: idx });
+        await fetch('/api/poll/vote', { method: 'POST', body });
+        fetchPoll();
+      };
+
+      function renderPoll(data) {
+        let el = document.getElementById('live-poll');
+
+        if (!data) {
+          if (el) el.remove();
+          return;
+        }
+
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'live-poll';
+          el.style.cssText = [
+            'background:rgba(129,140,248,0.06)',
+            'border:1px solid #4f46e5',
+            'border-left:4px solid #818cf8',
+            'padding:16px 18px',
+            'margin-bottom:20px',
+          ].join(';');
+          const container = document.querySelector('.container');
+          if (!container) return;
+          // Insert after h1
+          const h1 = container.querySelector('h1');
+          if (h1 && h1.nextSibling) {
+            container.insertBefore(el, h1.nextSibling);
+          } else {
+            container.prepend(el);
+          }
+        }
+
+        const total = data.totalVotes;
+        // voted is null (not voted) or a number (option index)
+        const hasVoted = data.voted !== null && data.voted !== undefined;
+
+        let html = '<div style="font-family:\'Press Start 2P\',monospace;font-size:9px;color:#818cf8;letter-spacing:2px;margin-bottom:10px;">📊 POLL</div>';
+        html += '<div style="margin-bottom:14px;font-size:21px;color:#e0e0ff;">' + data.question + '</div>';
+
+        data.options.forEach(function(opt, i) {
+          const pct = total > 0 ? Math.round(opt.votes / total * 100) : 0;
+          const isMyVote = hasVoted && data.voted === i;
+
+          if (hasVoted) {
+            html += '<div style="margin-bottom:10px;">';
+            html += '<div style="font-size:19px;color:' + (isMyVote ? '#a78bfa' : '#c4b5fd') + ';">' + (isMyVote ? '▶ ' : '') + opt.text + '</div>';
+            html += '<div style="color:#6b7280;font-size:16px;">' + opt.votes + ' vote' + (opt.votes !== 1 ? 's' : '') + ' (' + pct + '%)</div>';
+            html += '<div style="height:5px;background:#1a1a2e;margin-top:4px;border-radius:2px;">';
+            html += '<div style="height:5px;background:' + (isMyVote ? '#7c3aed' : '#4f46e5') + ';width:' + pct + '%;border-radius:2px;transition:width 0.4s;"></div>';
+            html += '</div></div>';
+          } else {
+            html += '<button onclick="castVote(' + i + ')" style="display:block;width:100%;margin-bottom:8px;text-align:left;padding:10px 14px;background:rgba(79,70,229,0.15);border:1px solid #4f46e5;color:#c4b5fd;font-family:VT323,monospace;font-size:20px;cursor:pointer;">' + opt.text + '</button>';
+          }
+        });
+
+        if (hasVoted) {
+          html += '<div style="color:#6b7280;font-size:16px;margin-top:6px;">' + total + ' total vote' + (total !== 1 ? 's' : '') + '</div>';
+        }
+
+        el.innerHTML = html;
       }
 
       fetchPoll();
